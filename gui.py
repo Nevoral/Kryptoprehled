@@ -2,114 +2,123 @@ import pandas as pd
 import streamlit as st
 from coinbasepro import Order, Coin, Portfolio, User, Deposit, Withdrawal
 import plotly.graph_objects as go
+import plotly.express as px
 from bs4 import BeautifulSoup
 import requests
 import json
 import copy
 import base64
+from datetime import datetime
 
 def fill(user, address):
     try: 
-        special = []
+        #special = []
         file = open(address + '\\fills.txt', 'r')
-        p = 0
         while True:
             line = file.readline()
             if not line:
                 break
             lines = line.split(",")
-            if p > 0:
-                order = Order(lines[0], lines[1], lines[2], lines[3], lines[4], lines[5], lines[6], lines[7], lines[8], lines[9], lines[10])
+            if lines[0] == 'portfolio':
+                continue
+            order = Order(lines[0], int(lines[1]), lines[2], lines[3], datetime.strptime(lines[4], "%Y-%m-%dT%H:%M:%S.%fZ"), float(lines[5]), lines[6], float(lines[7]), float(lines[8]), float(lines[9]), lines[10][:-1])
+            zapis = 0
+            for t in range(user.getLengthPortfolios()):
                 zapis = 0
-                for t in range(user.getLengthPortfolios()):
-                    zapis = 0
-                    if user.getPortfolios(t).getName() == order.getPortfolio():
-                        zapis += 1
-                        for p in range(user.getPortfolios(t).getLengthCryptocoins()):
-                            if user.getPortfolios(t).getCryptocoins(p).getCoin() == order.getUnit():
-                                user.getPortfolios(t).getCryptocoins(p).addTrade(order)
-                                zapis += 1
-                                if order.getSide() == "SELL" and order.getCurrency() != "EUR":
-                                    sp = Order(order.getPortfolio(), order.getTrade(), order.getCurrency() + "-" + order.getUnit(), "BUY", order.getDate(), order.getTotal(), order.getCurrency(), 0, 0, 0, "EUR")
-                                    special.append(sp)
-                                elif order.getSide() == "BUY" and order.getCurrency() != "EUR":
-                                    sp = Order(order.getPortfolio(), order.getTrade(), order.getCurrency() + "-" + order.getUnit(), "SELL", order.getDate(), order.getTotal(), order.getCurrency(), 0, 0, 0, "EUR")
-                                    special.append(sp)
-                                break
-                        break
-                if zapis == 0:
-                    coin = Coin(order.getUnit())
-                    coin.addTrade(order)
-                    portfolium = Portfolio(order.getPortfolio())
-                    portfolium.addCrypto(coin)
-                    user.addPortfolios(portfolium)
-                elif zapis == 1:
-                    coin = Coin(order.getUnit())
-                    coin.addTrade(order)
-                    user.getPortfolios(t).addCrypto(coin)
-            else:
-                p += 1
+                if user.getPortfolios(t).getName() == order.getPortfolio():
+                    zapis += 1
+                    for p in range(user.getPortfolios(t).getLengthCryptocoins()):
+                        if user.getPortfolios(t).getCryptocoins(p).getCoin() == order.getUnit():
+                            user.getPortfolios(t).getCryptocoins(p).addTrade(order)
+                            zapis += 1
+                            #if order.getSide() == "SELL" and order.getCurrency() != "EUR":
+                            #    sp = Order(order.getPortfolio(), order.getTrade(), order.getCurrency() + "-" + order.getUnit(), "BUY", order.getDate(), order.getTotal(), order.getCurrency(), 0, 0, 0, "EUR")
+                            #    special.append(sp)
+                            #elif order.getSide() == "BUY" and order.getCurrency() != "EUR":
+                            #    sp = Order(order.getPortfolio(), order.getTrade(), order.getCurrency() + "-" + order.getUnit(), "SELL", order.getDate(), order.getTotal(), order.getCurrency(), 0, 0, 0, "EUR")
+                            #    special.append(sp)
+                            break
+                    break
+            if zapis == 0:
+                coin = Coin(order.getUnit())
+                coin.addTrade(order)
+                portfolium = Portfolio(order.getPortfolio())
+                portfolium.addCrypto(coin)
+                user.addPortfolios(portfolium)
+            elif zapis == 1:
+                coin = Coin(order.getUnit())
+                coin.addTrade(order)
+                user.getPortfolios(t).addCrypto(coin)
         file.close()
+        #for i in range(len(special)):
+        #    for t in range(user.getLengthPortfolios()):
+        #        if user.getPortfolios(t).getName() == special[i].getPortfolio():
+        #            for p in range(user.getPortfolios(t).getLengthCryptocoins()):
+        #                if user.getPortfolios(t).getCryptocoins(p).getCoin() == special[i].getUnit():
+        #                    user.getPortfolios(t).getCryptocoins(p).addTrade(special[i])
     except:
         st.title('Prvně musíte zadat adresu ke složce ve, které se vám bude ukládat stav vašeho portfolia pro jednoduší budoucí přístup')
 
 def deposit(user, address):
-    try:
-        file = open(address + '\deposits.txt', 'r')
-        p = 0
-        while True:
-            line = file.readline()
-            if not line:
-                break
-            lines = line.split(",")
-            if p > 0:
-                pru = False
-                if lines[4] == "1":
-                    pru = True
-                d = Deposit(lines[0], lines[1], lines[2], float(lines[3]), pru, float(lines[5]))
-                for t in range(user.getLengthPortfolios()):
-                    if user.getPortfolios(t).getName() == d.getPortfolio():
-                        user.getPortfolios(t).addDeposit(d)
-            else:
-                p += 1
-        file.close()
-    except:
-        print('1')
+    file = open(address + '\deposits.txt', 'r')
+    while True:
+        line = file.readline()
+        if not line:
+            break
+        lines = line.split(",")
+        if lines[0] == 'portfolio':
+            continue
+        pru = False
+        if lines[4] == "1":
+            pru = True
+        d = Deposit(lines[0], lines[1], lines[2], float(lines[3]), pru, float(lines[5][:-1]))
+        for t in range(user.getLengthPortfolios()):
+            if user.getPortfolios(t).getName() == d.getPortfolio():
+                user.getPortfolios(t).addDeposit(d)
+    file.close()
 
 def withdrawal(user, address):
-    try:
-        file = open(address + '\withdrawals.txt', 'r')
-        p = 0
-        while True:
-            line = file.readline()
-            if not line:
-                break
-            lines = line.split(",")
-            if p > 0:
-                pru = False
-                if lines[5] == "1":
-                    pru = True
-                d = Withdrawal(lines[0], lines[1], lines[2], float(lines[3]), float(lines[4]), pru)
-                for t in range(user.getLengthPortfolios()):
-                    if user.getPortfolios(t).getName() == d.getPortfolio():
-                        user.getPortfolios(t).addWithdrawal(d)
-            else:
-                p += 1
-        file.close()
-    except:
-        print('2')
+    file = open(address + '\withdrawals.txt', 'r')
+    while True:
+        line = file.readline()
+        if not line:
+            break
+        lines = line.split(",")
+        if lines[0] == 'portfolio':
+            continue
+        pru = False
+        if lines[5][:-1] == "1":
+            pru = True
+        d = Withdrawal(lines[0], lines[1], lines[2], float(lines[3]), float(lines[4]), pru)
+        for t in range(user.getLengthPortfolios()):
+            if user.getPortfolios(t).getName() == d.getPortfolio():
+                user.getPortfolios(t).addWithdrawal(d)
+    file.close()
 
 def firstUpdate(user):
+    spec = []
     for i in range(user.getLengthPortfolios()):
+        for j in range(user.getPortfolios(i).getLengthCryptocoins()):
+            user.getPortfolios(i).getCryptocoins(j).sortTradeByTime()
+            spec += user.getPortfolios(i).getCryptocoins(j).setAmountInTimeFirst()
+    for k in range(len(spec)):
+        for i in range(user.getLengthPortfolios()):
+            if spec[k].getPortfolio() == user.getPortfolios(i).getName():
+                for j in range(user.getPortfolios(i).getLengthCryptocoins()):
+                    if user.getPortfolios(i).getCryptocoins(j).getCoin() == spec[k].getUnit():
+                        user.getPortfolios(i).getCryptocoins(j).addTrade(spec[k])
+    
+    for i in range(user.getLengthPortfolios()):
+        user.getPortfolios(i).countAsset()
         for j in range(user.getPortfolios(i).getLengthCryptocoins()):  
+            user.getPortfolios(i).getCryptocoins(j).sortTradeByTime()
+            user.getPortfolios(i).getCryptocoins(j).setAmountInTime()
+            user.getPortfolios(i).getCryptocoins(j).setFirstTimeTrade()
             user.getPortfolios(i).getCryptocoins(j).currentPrice()
-            user.getPortfolios(i).getCryptocoins(j).countAmount()
             user.getPortfolios(i).getCryptocoins(j).countBalance()
             user.getPortfolios(i).getCryptocoins(j).countProfit()
-            #user.getPortfolios(i).getCryptocoins(j).countAsset()
             user.getPortfolios(i).getCryptocoins(j).countAverageBuy()
         user.getPortfolios(i).countBalance()
-        user.getPortfolios(i).countAsset()
         user.getPortfolios(i).countPercent()
         user.getPortfolios(i).givePercent()
 
@@ -151,16 +160,6 @@ def load_data(currency_price_unit):
     df['Volume za 24 hodin'] = volume_24h
     return df
 
-def expandTable(portfolio, coin):
-    portfolio.sortCoin()
-    for i in range(portfolio.getLengthCryptocoins()):
-        if coin == portfolio.getCryptocoins(i).getCoin():
-            text = "{}".format(portfolio.getCryptocoins(i).getCoin())
-            expand = st.beta_expander(text, expanded=False)
-            port = portfolio.getCryptocoins(i).createTradePD()
-            with expand:
-                st.table(port)
-
 def depositList(user, address):
     col = st.beta_columns(7)
     name = user.getNamePortfolios()
@@ -187,9 +186,9 @@ def depositList(user, address):
         #st.markdown(filedownload(user.getPortfolios(name.index(portfolium)).createDepositPD(), 'deposit1'), unsafe_allow_html=True)
         if st.button('Přidat do depositu', key=1):
             dep = Deposit(portfolium, str(date) + 'T' + time + 'Z', unit, size, su, price)
-            file = open(address + '\deposits.txt', 'a')
-            if testfile('deposits.txt'):
-                file.write('{},{},{},{},{},{}\n'.format('Portfolio', 'Datum', 'Měna', 'Objem', 'Ledger', 'Cena'))
+            file = open(address + 'deposits.txt', 'a')
+            if testfile(address + 'deposits.txt'):
+                file.write('{},{},{},{},{},{}\n'.format('portfolio', 'datum', 'měna', 'objem', 'ledger', 'cena'))
             file.write('{},{},{},{},{},{}\n'.format(dep.getPortfolio(), dep.getDate(), dep.getCoin(), dep.getAmount(), dep.getWalet(), dep.getCost()))
             file.close()
             user.getPortfolios(name.index(portfolium)).deleteAllDeposit()
@@ -222,14 +221,18 @@ def withdrawalList(user, address):
         #st.markdown(filedownload(user.getPortfolios(name.index(portfolium)).createDepositPD(), 'deposit1'), unsafe_allow_html=True)
         if st.button('Přidat do withdrawal', key=9):
             dep = Withdrawal(portfolium, str(date) + 'T' + str(time) + 'Z', unit, size, float(fee), su)
-            file = open(address + '\withdrawals.txt', 'a')
-            if testfile('withdrawals.txt'):
-                file.write('{},{},{},{},{},{}\n'.format('Portfolio', 'Datum', 'Měna', 'Objem', 'Fee', 'Ledger'))
+            file = open(address + 'withdrawals.txt', 'a')
+            if testfile(address + 'withdrawals.txt'):
+                file.write('{},{},{},{},{},{}\n'.format('portfolio', 'datum', 'měna', 'objem', 'fee', 'ledger'))
             file.write('{},{},{},{},{},{}\n'.format(dep.getPortfolio(), dep.getDate(), dep.getCoin(), dep.getAmount(), dep.getFee(), dep.getWalet()))
             file.close()
             user.getPortfolios(name.index(portfolium)).deleteAllWithdrawal()
             withdrawal(user, address)
     st.table(user.getPortfolios(name.index(portfolium)).createWithfrawalPD())
+
+def createFile(name):
+    file = open(name, 'a')
+    file.close()
 
 def testfile(name):
     file = open(name, "r")
@@ -244,13 +247,13 @@ def startingPage(user):
     address = st.sidebar.text_input("Zadej adresu, kde se nachází fill.txt", value = '', type = "default")
     fill(user, address)
     try:
-        deposit(user, address)
+        deposit(user, address) 
     except:
-        depositList(user, address)  
+        createFile(address + 'deposits.txt')
     try:
         withdrawal(user, address)
     except:
-        withdrawalList(user, address)
+        createFile(address + 'withdrawals.txt')
     return address
 
 def displayPortfolium(user, address):
@@ -264,7 +267,7 @@ def displayPortfolium(user, address):
         if user.getPortfolios(name.index(portfolium)).getCryptocoins(i).getAmount() > 0.000001:
             coinName.append(user.getPortfolios(name.index(portfolium)).getCryptocoins(i).getCoin())
             percent.append(user.getPortfolios(name.index(portfolium)).getCryptocoins(i).getPercent())
-    coin = st.sidebar.selectbox("Trady specifického coinu", coinNameT)
+    coin = st.sidebar.selectbox("Obchody specifického coinu", coinNameT)
     #tady bude grafický vývoj hodnoty portfolia
     if st.sidebar.checkbox("Rozložení portfolia graficky", value = False, key = 0):
         fig = go.Figure(data=[go.Pie(labels=coinName, values=percent, pull=[0.2, 0, 0, 0, 0, 0, 0, 0])])
@@ -276,13 +279,22 @@ def displayPortfolium(user, address):
         elif dep == 'Přidání do Withdrawal listu':
             withdrawalList(user, address)
     else:
-        expand2 = st.beta_expander("Tvé {} portfolio".format(portfolium), expanded=True)
-        with expand2:
+        with st.beta_expander("Tvé {} portfolio".format(portfolium), expanded=True):
             if len(name) > 1:
                 st.table(port[name.index(portfolium)])
             elif len(name) == 1:
                 st.table(port[0])
-        expandTable(user.getPortfolios(name.index(portfolium)), coin)
+        for i in range(user.getPortfolios(name.index(portfolium)).getLengthCryptocoins()):
+            if user.getPortfolios(name.index(portfolium)).getCryptocoins(i).getCoin() == coin:
+                tr = user.getPortfolios(name.index(portfolium)).getCryptocoins(i).createTradePD()
+                df = user.getPortfolios(name.index(portfolium)).getCryptocoins(i).createAmountInTimePD()
+        with st.beta_expander("Obchody {} coinu:".format(coin), expanded=False):
+            for i in range(user.getPortfolios(name.index(portfolium)).getLengthCryptocoins()):
+                if user.getPortfolios(name.index(portfolium)).getCryptocoins(i).getCoin() == coin:
+                    st.table(tr)
+        with st.beta_expander("Vývoj množství {} coinu v čase:".format(coin), expanded=False):
+            fig = px.area(df, x='Datum', y='Množství')
+            st.plotly_chart(fig, use_container_width=True)
 
 def crypto_cap(pop):
     st.title(pop)
@@ -296,12 +308,10 @@ def crypto_cap(pop):
     st.subheader('Informace o Kryptoměnách')
     st.dataframe(df_coins)
     st.markdown(filedownload(df_selected_coin, 'cryptoCap'), unsafe_allow_html=True)
-    # Download CSV data
-    # https://discuss.streamlit.io/t/how-to-download-file-in-streamlit/1806
 
 def filedownload(df, name):
     csv = df.to_csv(index=False)
-    b64 = base64.b64encode(csv.encode()).decode()  # strings <-> bytes conversions
+    b64 = base64.b64encode(csv.encode()).decode()
     href = f'<a href="data:file/csv;base64,{b64}" download="{name}.csv"><input type="button" value="Download"></a>'
     return href
 
@@ -309,10 +319,7 @@ if __name__ == '__main__':
     st.set_page_config(page_title="Antyho cryptopřehled", page_icon="🧊", layout="wide", initial_sidebar_state="expanded")
     address = ''
     user = User()
-    try:
-        address = startingPage(user)
-    except:
-        print("nekdy jindy")
+    address = startingPage(user)
     radio = ['Portfolium', 'Crypto Market Cap', 'Coinbase grafy']
     pop = st.sidebar.radio("", (radio))
     if pop == 'Portfolium':
@@ -323,5 +330,4 @@ if __name__ == '__main__':
         crypto_cap(pop)
     else:
         pass
-            #res = requests.get("https://api.pro.coinbase.com/products/BTC-USD/candles?start=2021-02-24T12:00:00&stop=2021-02-25T12:00:00&granularity=21600")
-            #jsonFile(res.json())
+
